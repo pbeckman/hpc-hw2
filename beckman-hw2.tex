@@ -6,6 +6,7 @@
 \usepackage{bm}
 \usepackage{xcolor}
 \usepackage{float}
+\usepackage{multicol}
 \usepackage[justification=centering,labelfont=bf]{caption}
 
 \newcommand{\pr}[1]{\left(#1\right)}
@@ -63,7 +64,7 @@ to avoid copying and printing uninitialized variables.
 
 \section{Optimizing matrix-matrix multiplication}
 \subsection{Loop ordering}
-The given loop ordering gives the following timings on a Intel(R) Xeon(R) CPU
+The given loop ordering gives the following timings on an Intel(R) Xeon(R) CPU
 @2.53GHz processor (\texttt{crackle1})
 \begin{verbatim}
  Dimension       Time    Gflop/s       GB/s        Error
@@ -165,7 +166,123 @@ which is notably faster than the serial blocked implementation, but far from
 linear strong scaling.
 
 \subsection*{3}
+See code.
 
 \subsection*{4}
+\subsection{Jacobi}
+We observe the following timing results for 100 iterations of our Jacobi
+implementation
+\begin{multicols}{3}
+  \begin{verbatim}
+    SERIAL
+   N       Time
+   8   0.000025
+  16   0.000053
+  32   0.000176
+  64   0.000762
+ 128   0.003575
+ 256   0.014993
+ 512   0.060531
+1024   0.518867
+2048   2.126492
+4096   8.621786
+8192  36.595984
+ \end{verbatim}
+ \columnbreak
+ \begin{verbatim}
+OMP_NUM_THREADS=4
+   N       Time
+   8   0.000872
+  16   0.000770
+  32   0.000863
+  64   0.001286
+ 128   0.003526
+ 256   0.010747
+ 512   0.042753
+1024   0.177029
+2048   1.385724
+4096   6.183262
+8192  21.092580
+ \end{verbatim}
+ \columnbreak
+\begin{verbatim}
+OMP_NUM_THREADS=16
+   N       Time
+   8   0.001787
+  16   0.001614
+  32   0.001780
+  64   0.002097
+ 128   0.003122
+ 256   0.008068
+ 512   0.026186
+1024   0.158549
+2048   1.609879
+4096   4.907035
+8192  19.124445
+  \end{verbatim}
+\end{multicols} \vspace{-1.5\baselineskip} We note that the serial code is
+faster for $N < 128$, with more notable performance gains using parallelism for
+larger matrices as expected. We also note very minor performance gains between 4
+and 16 threads, and even a slow down with more threads for $N < 4096$,
+indicating that we are far from a linear strong scaling implementation.
+
+\newpage
+\subsection{Gauss-Seidel}
+Running again on an Intel(R) Xeon(R) CPU @2.53GHz processor (\texttt{crackle1}),
+we observe the following timing results for 100 iterations of our Gauss-Seidel
+implementation with red-black coloring
+\begin{multicols}{3}
+  \begin{verbatim}
+    SERIAL
+    N       Time
+    8   0.000021
+   16   0.000075
+   32   0.000253
+   64   0.000933
+  128   0.003881
+  256   0.016518
+  512   0.067685
+ 1024   0.392920
+ 2048   1.824175
+ 4096   8.255579
+ 8192  32.163247
+ \end{verbatim}
+ \columnbreak
+ \begin{verbatim}
+OMP_NUM_THREADS=4
+    N       Time
+    8   0.000810
+   16   0.000574
+   32   0.000628
+   64   0.000936
+  128   0.001570
+  256   0.004977
+  512   0.021225
+ 1024   0.114471
+ 2048   1.297420
+ 4096   4.093789
+ 8192  17.782354
+ \end{verbatim}
+ \columnbreak
+\begin{verbatim}
+OMP_NUM_THREADS=16
+    N       Time
+    8   0.001684
+   16   0.001753
+   32   0.001769
+   64   0.002106
+  128   0.002507
+  256   0.004842
+  512   0.017321
+ 1024   0.069080
+ 2048   1.594579
+ 4096   4.347041
+ 8192  21.512998
+  \end{verbatim}
+\end{multicols} \vspace{-1.5\baselineskip} Similarly to Jacobi, we note that the
+serial implementation is faster for $N < 64$. However in these results there is
+no clear comparison between 4 and 16 threads; the results are fairly similar.
+Gauss-Seidel does appear to parallelize slightly better than Jacobi, as we see
+nearly a factor of two speedup using 4 threads.
 
 \end{document}
