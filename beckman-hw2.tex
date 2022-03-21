@@ -1,0 +1,171 @@
+\documentclass{article}
+\usepackage{parskip}
+\usepackage{amsmath, amsthm, amssymb, amsfonts, mathtools, xfrac, dsfont}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{hyperref}
+\usepackage{bm}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage[justification=centering,labelfont=bf]{caption}
+
+\newcommand{\pr}[1]{\left(#1\right)}
+\newcommand{\br}[1]{\left[#1\right]}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newcommand{\ip}[1]{\left\langle#1\right\rangle}
+\renewcommand{\vec}[1]{\left\langle#1\right\rangle}
+\newcommand{\ind}[1]{\mathds{1}_{#1}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\mat}[1]{\begin{bmatrix}#1\end{bmatrix}}
+\newcommand{\der}[2]{\frac{d #1}{d #2}} \newcommand{\mder}[2]{\frac{D #1}{D #2}}
+\newcommand{\pder}[2]{\frac{\partial #1}{\partial #2}}
+\renewcommand{\arraystretch}{1.3}
+\newcommand{\R}{\mathbb{R}} \newcommand{\Q}{\mathbb{Q}}
+\newcommand{\C}{\mathbb{C}} \newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}} \newcommand{\E}{\mathbb{E}}
+\renewcommand{\P}{\mathbb{P}} \renewcommand{\S}{\mathbb{S}}
+\renewcommand{\O}{\mathcal{O}} \newcommand{\F}{\mathcal{F}}
+\renewcommand{\epsilon}{\varepsilon}
+\DeclareMathOperator{\Cov}{Cov} \DeclareMathOperator{\Var}{Var} \let\Re\relax
+\DeclareMathOperator{\Re}{Re} \let\Im\relax \DeclareMathOperator{\Im}{Im}
+\DeclareMathOperator{\diag}{diag} \DeclareMathOperator{\tr}{tr}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\setlength\parindent{0pt}
+
+\title{High Performance Computing: Homework 2}
+\author{Paul Beckman}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Finding memory bugs}
+For \texttt{val\_test01}, we make the following changes
+\begin{itemize}
+  \item line 80: change \texttt{<=} to \texttt{<} to avoid indexing out of
+  bounds 
+  \item line 86: change \texttt{delete []} to \texttt{free} to match original
+  malloc
+\end{itemize}
+
+For \texttt{val\_test02}, we add the initialization block
+\begin{verbatim}
+  for ( i = 6; i < 10; i++ )
+  {
+    x[i] = 0;
+  }
+\end{verbatim}
+to avoid copying and printing uninitialized variables.
+
+\section{Optimizing matrix-matrix multiplication}
+\subsection{Loop ordering}
+The given loop ordering gives the following timings on a Intel(R) Xeon(R) CPU
+@2.53GHz processor (\texttt{crackle1})
+\begin{verbatim}
+ Dimension       Time    Gflop/s       GB/s        Error
+        16   0.732706   2.729614  43.673817 0.000000e+00
+       208   0.772579   2.609128  41.746043 0.000000e+00
+       400   0.769613   2.661077  42.577230 0.000000e+00
+       592   0.783120   2.649334  42.389349 0.000000e+00
+       784   1.083208   2.669241  42.707854 0.000000e+00
+       976   1.373894   2.706800  43.308797 0.000000e+00
+      1168   1.241814   2.566268  41.060295 0.000000e+00
+      1360   2.242826   2.243112  35.889800 0.000000e+00
+      1552   3.530674   2.117618  33.881884 0.000000e+00
+      1744   5.011761   2.116796  33.868742 0.000000e+00
+      1936   6.864092   2.114282  33.828515 0.000000e+00
+\end{verbatim}
+The other ordering where the inner loop is over columns performs similarly. In
+contrast, other loop orderings give slower timings. For example, if we exchange
+the \texttt{i} and \texttt{p} variables so that the inner loop is over the
+shared dimension \texttt{k}, we obtain
+\begin{verbatim}
+ Dimension       Time    Gflop/s       GB/s        Error
+        16   1.318957   1.516352  24.261640 0.000000e+00
+       208   1.597254   1.262014  20.192218 0.000000e+00
+       400   2.103392   0.973665  15.578647 0.000000e+00
+       592   1.986053   1.044658  16.714533 0.000000e+00
+       784   2.674992   1.080879  17.294057 0.000000e+00
+       976   3.449245   1.078165  17.250648 0.000000e+00
+      1168   3.529046   0.903028  14.448448 0.000000e+00
+      1360   6.411109   0.784718  12.555486 0.000000e+00
+      1552  10.383032   0.720080  11.521286 0.000000e+00
+      1744  15.729447   0.674460  10.791354 0.000000e+00
+      1936  21.918752   0.662110  10.593762 0.000000e+00
+\end{verbatim}
+This can be explained by the column major ordering of the matrix storage, as
+having the column variable in the inner loop allows one or more columns to be
+cashed during computation, reducing memory access requirements.
+
+\subsection{Blocking}
+After blocking (with \texttt{BLOCK\_SIZE} 16) we see immediate speedups and
+increased bandwidth, as more arithmetic is done using cached matrix entries
+\begin{verbatim}
+ Dimension       Time    Gflop/s       GB/s        Error
+        16   0.000004   2.278087  36.449388 0.000000e+00
+       208   0.006020   2.989627  47.834033 0.000000e+00
+       400   0.042895   2.984037  47.744597 0.000000e+00
+       592   0.139096   2.983178  47.730855 0.000000e+00
+       784   0.328163   2.936894  46.990312 0.000000e+00
+       976   0.629938   2.951764  47.228223 0.000000e+00
+      1168   1.133763   2.810842  44.973469 0.000000e+00
+      1360   1.950271   2.579597  41.273548 0.000000e+00
+      1552   2.978048   2.510576  40.169218 0.000000e+00
+      1744   4.221113   2.513289  40.212627 0.000000e+00
+      1936   5.799208   2.502519  40.040300 0.000000e+00
+\end{verbatim}
+In this regime, smaller block sizes appear to be best for speed. Using
+\texttt{BLOCK\_SIZE} 4 gives
+\begin{verbatim}
+ Dimension       Time    Gflop/s       GB/s        Error
+         4   0.000001   0.139891   2.238251 0.000000e+00
+       204   0.004475   3.794272  60.708348 0.000000e+00
+       404   0.034631   3.808085  60.929359 0.000000e+00
+       604   0.117891   3.738184  59.810939 0.000000e+00
+       804   0.281168   3.696848  59.149565 0.000000e+00
+      1004   0.548550   3.689902  59.038437 0.000000e+00
+      1204   0.951046   3.670355  58.725673 0.000000e+00
+      1404   1.560903   3.546135  56.738164 0.000000e+00
+      1604   2.343953   3.521229  56.339658 0.000000e+00
+      1804   3.358989   3.495675  55.930796 0.000000e+00
+\end{verbatim}
+which shows improvement over \texttt{BLOCK\_SIZE} 16. If we increase the block
+size above 16, we see even slower results. This is a bit surprising, as I would
+expect a larger block size to ``just barely fit" in the cache and thus give
+optimal performance.
+
+\subsection{Parallelism}
+Following the discussion in lecture, I tried reordering the loops in each block
+so that the shared dimension \texttt{k} is the inner loop and using
+\texttt{collapse(2)} on the outer two loops as they are perfectly nested.
+However, this appears to lead to serious slowdowns. 
+
+Alternatively, taking the most naive approach and simply slapping a
+\texttt{parallel for} in front of the first outer loop gives decent speedups.
+For example, with a bit larger \texttt{BLOCK\_SIZE} 16 and 16 threads, we obtain 
+\begin{verbatim}
+ Dimension       Time    Gflop/s       GB/s        Error
+        16   0.000158   0.051758   0.828133 0.000000e+00
+       208   0.001721  10.457425 167.318795 0.000000e+00
+       400   0.010832  11.817296 189.076738 0.000000e+00
+       592   0.034267  12.109437 193.750996 0.000000e+00
+       784   0.078501  12.277328 196.437248 0.000000e+00
+       976   0.145595  12.771261 204.340171 0.000000e+00
+      1168   0.261762  12.174537 194.792598 0.000000e+00
+      1360   0.454422  11.071019 177.136298 0.000000e+00
+      1552   0.739173  10.114843 161.837495 0.000000e+00
+      1744   1.074908   9.869567 157.913073 0.000000e+00
+      1936   1.463838   9.914097 158.625553 0.000000e+00
+\end{verbatim}
+which is notably faster than the serial blocked implementation, but far from
+linear strong scaling.
+
+\subsection*{3}
+
+\subsection*{4}
+
+\end{document}
